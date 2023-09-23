@@ -2,6 +2,11 @@ provider "azurerm" {
   features {}
 }
 
+variable "region" {
+  description = "The Azure region for deployment"
+  type        = string
+}
+
 # Variables for Existing VNet and Subnet
 variable "existing_vnet_name" {
   description = "Name of the existing VNet"
