@@ -40,7 +40,7 @@ resource "tls_private_key" "ssh_key" {
 # Resource Group for VM
 resource "azurerm_resource_group" "rg" {
   name     = "my-vm-rg"
-  location = "centralindia"  # Adjust to your preferred region or use data.azurerm_virtual_network.existing_vnet.location
+  location = "var.region"  # Adjust to your preferred region or use data.azurerm_virtual_network.existing_vnet.location
 }
 
 # Network Interface
