@@ -31,9 +31,15 @@ data "azurerm_subnet" "existing_subnet" {
   resource_group_name  = var.existing_vnet_rg
 }
 
+# Generate SSH Key Pair
+resource "tls_private_key" "ssh_key" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
 # Resource Group for VM
 resource "azurerm_resource_group" "rg" {
-  name     = "genplaytesting"
+  name     = "my-vm-rg"
   location = "centralindia"  # Adjust to your preferred region or use data.azurerm_virtual_network.existing_vnet.location
 }
 
@@ -70,8 +76,19 @@ resource "azurerm_linux_virtual_machine" "vm" {
   }
 
   computer_name  = "myvm"
-  admin_username = "santhosh"
-  admin_password = "Imagine@123!"  # Change this to a strong password
+  admin_username = "adminuser"
+
+  admin_ssh_key {
+    username   = "adminuser"
+    public_key = tls_private_key.ssh_key.public_key_openssh
+  }
 
   network_interface_ids = [azurerm_network_interface.nic.id]
+}
+
+# Output the Private Key
+output "private_key" {
+  description = "The private key for VM SSH access"
+  value      = tls_private_key.ssh_key.private_key_pem
+  sensitive  = true
 }
