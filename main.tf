@@ -1,99 +1,90 @@
-provider "azurerm" {
-  features {}
-}
+resource "azurerm_network_security_group" "nsg" {
+  name                = var.networkSecurityGroupName
+  location            = var.location
+  resource_group_name = var.resource_group_name
 
-variable "region" {
-  description = "The Azure region for deployment"
-  type        = string
-}
+  dynamic "security_rule" {
+    for_each = var.networkSecurityGroupRules
+    content {
+      name                        = security_rule.value.name
+      priority                    = security_rule.value.priority
+      direction                   = security_rule.value.direction
+      access                      = security_rule.value.access
+      protocol                    = security_rule.value.protocol
+      source_port_range           = security_rule.value.source_port_range
+      destination_port_range      = security_rule.value.destination_port_range
+      source_address_prefix       = security_rule.value.source_address_prefix
+      destination_address_prefix  = security_rule.value.destination_address_prefix
+    }
+  }
 
-# Variables for Existing VNet and Subnet
-variable "existing_vnet_name" {
-  description = "Name of the existing VNet"
-  type        = string
-}
-
-variable "existing_vnet_rg" {
-  description = "Resource Group of the existing VNet"
-  type        = string
-}
-
-variable "existing_subnet_name" {
-  description = "Name of the existing subnet within the VNet"
-  type        = string
-}
-
-# Reference the Existing VNet
-data "azurerm_virtual_network" "existing_vnet" {
-  name                = var.existing_vnet_name
-  resource_group_name = var.existing_vnet_rg
-}
-
-# Reference the Specific Subnet
-data "azurerm_subnet" "existing_subnet" {
-  name                 = var.existing_subnet_name
-  virtual_network_name = var.existing_vnet_name
-  resource_group_name  = var.existing_vnet_rg
-}
-
-# Generate SSH Key Pair
-resource "tls_private_key" "ssh_key" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
-
-# Resource Group for VM
-resource "azurerm_resource_group" "rg" {
-  name     = "my-vm-rg"
-  location = var.region  # Adjust to your preferred region or use data.azurerm_virtual_network.existing_vnet.location
-}
-
-# Network Interface
-resource "azurerm_network_interface" "nic" {
-  name                = "myNIC"
-  location            = data.azurerm_virtual_network.existing_vnet.location
-  resource_group_name = azurerm_resource_group.rg.name
-
-  ip_configuration {
-    name                          = "internal"
-    subnet_id                     = data.azurerm_subnet.existing_subnet.id
-    private_ip_address_allocation = "Dynamic"
+  tags = {
+    test = "delete"
   }
 }
 
-# Ubuntu 22 LTS Virtual Machine
+resource "azurerm_public_ip" "pip" {
+  name                = var.publicIpAddressName
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  allocation_method   = var.publicIpAddressType
+  sku                 = var.publicIpAddressSku
+
+  tags = {
+    test = "delete"
+  }
+}
+
+resource "azurerm_network_interface" "nic" {
+  name                = var.networkInterfaceName
+  location            = var.location
+  resource_group_name = var.resource_group_name
+
+  ip_configuration {
+    name                          = "ipconfig1"
+    subnet_id                     = var.subnet_id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.pip.id
+  }
+
+  enable_accelerated_networking = var.enableAcceleratedNetworking
+
+  network_security_group_id = azurerm_network_security_group.nsg.id
+
+  tags = {
+    test = "delete"
+  }
+}
+
 resource "azurerm_linux_virtual_machine" "vm" {
-  name                = "myVM"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = azurerm_resource_group.rg.location
-  size                = "Standard_DS1_v2"  # Adjust to your preferred VM size
+  name                = var.virtualMachineName
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  size                = var.virtualMachineSize
+
+  network_interface_ids = [azurerm_network_interface.nic.id]
 
   os_disk {
     caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
+    storage_account_type = var.osDiskType
   }
 
   source_image_reference {
-    publisher = "Canonical"
+    publisher = "canonical"
     offer     = "0001-com-ubuntu-server-jammy"
     sku       = "22_04-lts-gen2"
     version   = "latest"
   }
 
-  computer_name  = "myvm"
-  admin_username = "adminuser"
+  computer_name  = var.virtualMachineComputerName
+  admin_username = var.adminUsername
+  disable_password_authentication = true
 
-  admin_ssh_key {
-    username   = "adminuser"
-    public_key = tls_private_key.ssh_key.public_key_openssh
+  tags = {
+    test = "delete"
   }
-
-  network_interface_ids = [azurerm_network_interface.nic.id]
 }
 
-# Output the Private Key
-output "private_key" {
-  description = "The private key for VM SSH access"
-  value      = tls_private_key.ssh_key.private_key_pem
-  sensitive  = true
+output "adminUsername" {
+  value = var.adminUsername
 }
